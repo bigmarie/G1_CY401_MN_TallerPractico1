@@ -1,15 +1,20 @@
 #!/bin/bash
 
 # ============================================================================
-# CURSO: CY401 - Taller Práctico 1
+# CURSO: CY401 - Taller Práctico 1 - Sistemas Operativos Avanzados
 # GRUPO: 1
 # PROYECTO: Sistema de Monitoreo y Automatización del Sistema
 # ============================================================================
-# 
+#
 # DESCRIPCIÓN:
 # Script de monitoreo del sistema que recolecta métricas (CPU, memoria, disco)
 # con marcas de tiempo, genera alertas si se superan umbrales, captura
 # interrupciones (SIGINT) y mantiene un registro en archivos de log.
+#
+# ESTUDIANTES Y SUS CONTRIBUCIONES:
+# - Estudiante 1 (Aaron): Arquitectura, entorno, captura de interrupciones
+# - Estudiante 2 (Nicole): Monitoreo base y alertas de sistema
+# - Estudiante 3 (Celestita): Menú interactivo y automatización en bucle
 #
 # ============================================================================
 
@@ -17,7 +22,7 @@
 
 
 # ---------------------- Variables globales (configurables) ----------------------
-# Variables para configuración del usuario y ubicación de logs
+# Variables para configuración del usuario y ubicación de logs (Estudiante 2 - Nicole)
 usuario_guar="$(whoami)"
 log_guar="${usuario_guar}_tailer1"
 
@@ -26,15 +31,18 @@ LOG_DIR="./logs"
 # El nombre del archivo se configura dinámicamente con la fecha actual
 LOG_FILE_PREFIX="monitoreo"
 TIMESTAMP_FMT="%Y-%m-%d %H:%M:%S"
-THRESHOLD_MEM=70  # Umbral en porcentaje para generar alerta (por defecto 70)
 
-# Variables para el loop de iteraciones
-ITERATIONS=5
-SLEEP_INTERVAL=60  # 60 segundos entre iteraciones
+# Umbral de memoria para generar alertas (Estudiante 2 - Nicole)
+THRESHOLD_MEM=70  # Umbral en porcentaje (por defecto 70%)
+
+# Variables para el bucle de iteraciones (Estudiante 3 - Celestita)
+ITERATIONS=5                # Número de iteraciones de monitoreo
+SLEEP_INTERVAL=60          # 60 segundos entre iteraciones
 
 # ---------------------- Funciones auxiliares ----------------------
 
-# Manejador de interrupciones (SIGINT)
+# Manejador de interrupciones (SIGINT) - Estudiante 1 (Aaron)
+# Captura interrupciones del usuario (Ctrl+C) y registra el evento en el log
 manejar_interrupcion() {
   local ts
   ts="$(timestamp)"
@@ -48,19 +56,23 @@ manejar_interrupcion() {
   exit 130
 }
 
-# Configurar trap para capturar SIGINT
+# Configurar trap para capturar SIGINT (Estudiante 1 - Aaron)
 trap 'manejar_interrupcion' SIGINT
 
+# Crear directorio de logs si no existe
 crear_directorio_logs() {
   if [ ! -d "$LOG_DIR" ]; then
     mkdir -p "$LOG_DIR"
   fi
 }
 
+# Obtener marca de tiempo en formato configurable
 timestamp() {
   date "+${TIMESTAMP_FMT}"
 }
 
+# Recolectar métricas del sistema (Estudiante 2 - Nicole)
+# Captura datos de CPU, memoria y disco con marca de tiempo
 recolectar_metricas() {
   local ts
   ts="$(timestamp)"
@@ -76,9 +88,9 @@ recolectar_metricas() {
   } >> "$LOG_FILE" 2>&1
 }
 
+# Calcular porcentaje de memoria usada (Estudiante 2 - Nicole)
+# Utiliza /proc/meminfo para cálculos más precisos en Linux
 porcentaje_memoria_usada() {
-  # Calcula el porcentaje de memoria usada basado en /proc/meminfo (Linux)
-  # Si free no está en el sistema, intenta usar free command como fallback
   if [ -r /proc/meminfo ]; then
     local mem_total mem_available used_percent
     mem_total=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
@@ -90,7 +102,6 @@ porcentaje_memoria_usada() {
     used_percent=$(( ( (mem_total - mem_available) * 100 ) / mem_total ))
     echo "$used_percent"
   else
-    # Fallback a free -m
     local used total
     read used total <<< $(free -m | awk '/Mem:/ {print $3" "$2}')
     if [ -z "$used" ] || [ -z "$total" ] || [ "$total" -eq 0 ]; then
@@ -101,6 +112,8 @@ porcentaje_memoria_usada() {
   fi
 }
 
+# Verificar y generar alerta si la memoria excede el umbral (Estudiante 2 - Nicole)
+# Retorna 0 si está dentro del umbral, 1 si se dispara la alerta
 comprobar_alerta_memoria() {
   local used
   used=$(porcentaje_memoria_usada)
@@ -112,40 +125,59 @@ comprobar_alerta_memoria() {
   fi
   return 0
 }
-# ---------------------- Menú ----------------------
-mostrar_menu() {
-  echo ""
-  echo "========== MENÚ =========="
-  echo "1. Ver CPU"
-  echo "2. Ver procesos activos"
-  echo "3. Continuar con monitoreo"
-  echo "=========================="
-
-  read -p "Seleccione una opción: " opcion
-
-  case $opcion in
-    1)
-      top -bn1 | grep "Cpu(s)"
-      ;;
-    2)
-      ps aux --sort=-%cpu | head -10
-      ;;
-    3)
-      echo "Iniciando monitoreo..."
-      ;;
-    *)
-      echo "ERROR: Opción inválida."
-      ;;
-  esac
-}
 # ---------------------- Flujo principal ----------------------
+# Crear directorio de logs primero
 crear_directorio_logs
-mostrar_menu
 
-# Configurar el nombre del archivo de log con la fecha actual
+# Configurar el nombre del archivo de log con la fecha actual (ANTES del menú)
 LOG_FILE="${LOG_DIR}/${LOG_FILE_PREFIX}_$(date +%Y-%m-%d).log"
 
-# Mensaje inicial
+# ---------------------- Menú interactivo ----------------------
+mostrar_menu() {
+  while true; do
+    echo ""
+    echo "========== MENÚ =========="
+    echo "1. Ver CPU"
+    echo "2. Ver procesos activos"
+    echo "3. Salir"
+    echo "=========================="
+    echo ""
+
+    read -p "Seleccione una opción: " opcion
+
+    case $opcion in
+      1)
+        echo ""
+        echo "[*] Información de CPU:"
+        echo "---"
+        top -bn1 | grep "Cpu(s)"
+        echo ""
+        ;;
+      2)
+        echo ""
+        echo "[*] Top 10 procesos por uso de CPU:"
+        echo "---"
+        ps aux --sort=-%cpu | head -11
+        echo ""
+        ;;
+      3)
+        echo ""
+        echo "[*] Iniciando monitoreo del sistema..."
+        echo ""
+        break
+        ;;
+      *)
+        echo "[ERROR] Opción inválida. Por favor, seleccione 1, 2 o 3."
+        echo ""
+        ;;
+    esac
+  done
+}
+
+# Mostrar menú inicial
+mostrar_menu
+
+# Mensaje inicial del monitoreo
 {
   echo "============================================================"
   echo "Inicio de Monitoreo - $(date '+%Y-%m-%d %H:%M:%S')"
@@ -155,17 +187,20 @@ LOG_FILE="${LOG_DIR}/${LOG_FILE_PREFIX}_$(date +%Y-%m-%d).log"
   echo ""
 } >> "$LOG_FILE" 2>&1
 
-# Loop de iteraciones para monitoreo
+# Loop de iteraciones para monitoreo (Estudiante 3 - Celestita)
+# Ejecuta el monitoreo durante 5 iteraciones con intervalo de 60 segundos
 for ((i=1; i<=ITERATIONS; i++)); do
   {
     echo "--- Iteración $i de $ITERATIONS ---"
     echo ""
   } >> "$LOG_FILE" 2>&1
   
+  # Recolectar métricas del sistema
   recolectar_metricas
   
+  # Verificar alertas de memoria
   if ! comprobar_alerta_memoria; then
-    # Se generó una alerta, pero continuamos
+    # Se generó una alerta, pero continuamos con el monitoreo
     :
   fi
   
@@ -175,7 +210,7 @@ for ((i=1; i<=ITERATIONS; i++)); do
   fi
 done
 
-# Mensaje final
+# Mensaje final del monitoreo
 {
   echo ""
   echo "============================================================"
