@@ -1,15 +1,53 @@
 #!/bin/bash
 
-# Funcionalidad: recolectar métricas (top, free, df) con marcas de tiempo
-# y generar una alerta si el uso de memoria RAM supera el umbral configurado.
+# ============================================================================
+# CURSO: CY401 - Taller Práctico 1
+# GRUPO: 1
+# PROYECTO: Sistema de Monitoreo y Automatización del Sistema
+# ============================================================================
+# 
+# DESCRIPCIÓN:
+# Script de monitoreo del sistema que recolecta métricas (CPU, memoria, disco)
+# con marcas de tiempo, genera alertas si se superan umbrales, captura
+# interrupciones (SIGINT) y mantiene un registro en archivos de log.
+#
+# ============================================================================
 
 # ---------------------- Variables globales (configurables) ----------------------
+# Variables para configuración del usuario y ubicación de logs
+usuario_guar="$(whoami)"
+log_guar="${usuario_guar}_tailer1"
+
+# Configuración base de logs con timestamp en el nombre del archivo
 LOG_DIR="./logs"
-LOG_FILE="${LOG_DIR}/monitoreo.log"
+# El nombre del archivo se configura dinámicamente con la fecha actual
+LOG_FILE_PREFIX="monitoreo"
 TIMESTAMP_FMT="%Y-%m-%d %H:%M:%S"
 THRESHOLD_MEM=70  # Umbral en porcentaje para generar alerta (por defecto 70)
 
+# Variables para el loop de iteraciones
+ITERATIONS=5
+SLEEP_INTERVAL=60  # 60 segundos entre iteraciones
+
 # ---------------------- Funciones auxiliares ----------------------
+
+# Manejador de interrupciones (SIGINT)
+manejar_interrupcion() {
+  local ts
+  ts="$(timestamp)"
+  {
+    echo ""
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] - Script interrumpido por el usuario"
+    echo "Usuario: ${usuario_guar}"
+    echo "Razón: Señal SIGINT recibida"
+    echo ""
+  } >> "$LOG_FILE" 2>&1
+  exit 130
+}
+
+# Configurar trap para capturar SIGINT
+trap 'manejar_interrupcion' SIGINT
+
 crear_directorio_logs() {
   if [ ! -d "$LOG_DIR" ]; then
     mkdir -p "$LOG_DIR"
@@ -74,11 +112,47 @@ comprobar_alerta_memoria() {
 
 # ---------------------- Flujo principal ----------------------
 crear_directorio_logs
-recolectar_metricas
-if ! comprobar_alerta_memoria; then
-  # Código de salida 1 indica que se generó una alerta
-  exit 1
-fi
+
+# Configurar el nombre del archivo de log con la fecha actual
+LOG_FILE="${LOG_DIR}/${LOG_FILE_PREFIX}_$(date +%Y-%m-%d).log"
+
+# Mensaje inicial
+{
+  echo "============================================================"
+  echo "Inicio de Monitoreo - $(date '+%Y-%m-%d %H:%M:%S')"
+  echo "Usuario: ${usuario_guar}"
+  echo "Log Guard: ${log_guar}"
+  echo "============================================================"
+  echo ""
+} >> "$LOG_FILE" 2>&1
+
+# Loop de iteraciones para monitoreo
+for ((i=1; i<=ITERATIONS; i++)); do
+  {
+    echo "--- Iteración $i de $ITERATIONS ---"
+    echo ""
+  } >> "$LOG_FILE" 2>&1
+  
+  recolectar_metricas
+  
+  if ! comprobar_alerta_memoria; then
+    # Se generó una alerta, pero continuamos
+    :
+  fi
+  
+  # No dormir en la última iteración
+  if [ $i -lt $ITERATIONS ]; then
+    sleep "$SLEEP_INTERVAL"
+  fi
+done
+
+# Mensaje final
+{
+  echo ""
+  echo "============================================================"
+  echo "Fin de Monitoreo - $(date '+%Y-%m-%d %H:%M:%S')"
+  echo "============================================================"
+} >> "$LOG_FILE" 2>&1
 
 # Salida exitosa
 exit 0
