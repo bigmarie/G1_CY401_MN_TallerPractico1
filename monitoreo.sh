@@ -15,7 +15,7 @@
 # - Estudiante 1 (Aaron): Arquitectura, entorno, captura de interrupciones
 # - Estudiante 2 (Nicole): Monitoreo base y alertas de sistema
 # - Estudiante 3 (Celestita): Menú interactivo y automatización en bucle
-#
+# - Estudiante 4 (Elian): Funcion  'verificar_proceso()' y respaldo de Logs, se modifica el menu para agregar la opcion de monitoreo
 # ============================================================================
 
 
@@ -28,6 +28,8 @@ log_guar="${usuario_guar}_tailer1"
 
 # Configuración base de logs con timestamp en el nombre del archivo
 LOG_DIR="./logs"
+BACKUP_DIR="./backups"
+MAX_LOG_SIZE=$((10 * 1024 * 1024)) # 10 MB en bytes
 # El nombre del archivo se configura dinámicamente con la fecha actual
 LOG_FILE_PREFIX="monitoreo"
 TIMESTAMP_FMT="%Y-%m-%d %H:%M:%S"
@@ -63,6 +65,10 @@ trap 'manejar_interrupcion' SIGINT
 crear_directorio_logs() {
   if [ ! -d "$LOG_DIR" ]; then
     mkdir -p "$LOG_DIR"
+  fi
+
+  if [ ! -d "$BACKUP_DIR" ]; then
+    mkdir -p "$BACKUP_DIR"
   fi
 }
 
@@ -125,12 +131,76 @@ comprobar_alerta_memoria() {
   fi
   return 0
 }
+
+# Verificar si un proceso está activo (Estudiante 4 - Elian)
+# Recibe como parámetro el nombre de un proceso y comprueba si está en ejecución
+verificar_proceso() {
+  local proceso="$1"
+  local ts
+  ts="$(timestamp)"
+
+  if [ -z "$proceso" ]; then
+    echo "[ERROR] ${ts} - No se indicó ningún proceso para verificar." >> "$LOG_FILE"
+    return 1
+  fi
+
+  if pgrep -x "$proceso" > /dev/null 2>&1; then
+    echo "[OK] ${ts} - El proceso '${proceso}' está activo." >> "$LOG_FILE"
+    echo "El proceso '${proceso}' está activo."
+    return 0
+  else
+    echo "[INFO] ${ts} - El proceso '${proceso}' NO está activo." >> "$LOG_FILE"
+    echo "El proceso '${proceso}' NO está activo."
+    return 1
+  fi
+}
+
+# Verificar logs anteriores y respaldarlos si superan los 10 MB (Estudiante 4 - Elian)
+verificar_tamano_logs() {
+  local ts
+  ts="$(timestamp)"
+
+  echo "[INFO] ${ts} - Verificando tamaño de logs anteriores." >> "$LOG_FILE"
+
+  for archivo in "$LOG_DIR"/*.log; do
+    [ -e "$archivo" ] || continue
+
+    # Evita comprimir el log actual
+    if [ "$archivo" != "$LOG_FILE" ]; then
+      local tamano
+      tamano=$(stat -c%s "$archivo")
+
+      if [ "$tamano" -gt "$MAX_LOG_SIZE" ]; then
+        local nombre_archivo
+        local respaldo
+
+        nombre_archivo=$(basename "$archivo")
+        respaldo="$BACKUP_DIR/respaldo_${nombre_archivo}_$(date +%Y-%m-%d_%H-%M-%S).tar.gz"
+
+        tar -czf "$respaldo" -C "$LOG_DIR" "$nombre_archivo"
+
+        if [ $? -eq 0 ]; then
+          echo "[OK] $(timestamp) - Respaldo creado correctamente: $respaldo" >> "$LOG_FILE"
+          rm "$archivo"
+          echo "[OK] $(timestamp) - Log anterior eliminado después del respaldo: $archivo" >> "$LOG_FILE"
+        else
+          echo "[ERROR] $(timestamp) - No se pudo crear respaldo para: $archivo" >> "$LOG_FILE"
+        fi
+      else
+        echo "[INFO] $(timestamp) - El log $archivo no supera los 10 MB." >> "$LOG_FILE"
+      fi
+    fi
+  done
+}
 # ---------------------- Flujo principal ----------------------
 # Crear directorio de logs primero
 crear_directorio_logs
 
 # Configurar el nombre del archivo de log con la fecha actual (ANTES del menú)
 LOG_FILE="${LOG_DIR}/${LOG_FILE_PREFIX}_$(date +%Y-%m-%d).log"
+
+# Verificar tamaño de logs anteriores antes de iniciar el monitoreo
+verificar_tamano_logs
 
 # ---------------------- Menú interactivo ----------------------
 mostrar_menu() {
@@ -139,7 +209,8 @@ mostrar_menu() {
     echo "========== MENÚ =========="
     echo "1. Ver CPU"
     echo "2. Ver procesos activos"
-    echo "3. Salir"
+    echo "3. Iniciar monitoreo"
+    echo "4. Salir"
     echo "=========================="
     echo ""
 
@@ -159,6 +230,9 @@ mostrar_menu() {
         echo "---"
         ps aux --sort=-%cpu | head -11
         echo ""
+        read -p "Digite el nombre del proceso que desea verificar: " proceso_buscar
+        verificar_proceso "$proceso_buscar"
+        echo ""
         ;;
       3)
         echo ""
@@ -166,8 +240,14 @@ mostrar_menu() {
         echo ""
         break
         ;;
+        4)
+        echo ""
+        echo "[*] Saliendo del script..."
+        echo ""
+        exit 0
+        ;;
       *)
-        echo "[ERROR] Opción inválida. Por favor, seleccione 1, 2 o 3."
+        echo "[ERROR] Opción inválida. Por favor, seleccione 1, 2, 3 o 4."
         echo ""
         ;;
     esac
