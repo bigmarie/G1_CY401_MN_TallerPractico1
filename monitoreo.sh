@@ -14,6 +14,8 @@
 # ============================================================================
 
 
+
+
 # ---------------------- Variables globales (configurables) ----------------------
 # Variables para configuración del usuario y ubicación de logs
 usuario_guar="$(whoami)"
