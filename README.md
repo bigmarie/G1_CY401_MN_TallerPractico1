@@ -34,3 +34,11 @@ Este repositorio es para el taller práctico del grupo 1 para el curso CY401.
 
 # Instrucciones
 Incluir comandos de ejecución.
+
+Comandos y ejemplos para Monitoreo
+- Hacer ejecutable el script:  `chmod +x monitoreo.sh`
+- Ejecutar el script: bash monitoreo.sh
+- Ejecutar con variables personalizadas: `LOG_DIR=/ruta/logs THRESHOLD_MEM=80 bash monitoreo.sh`
+- Ver últimos logs: `tail -n 100 "$LOG_FILE"`
+- Programar en cron (ejecución cada hora):
+  ` 0 * * * * /ruta/al/script/monitoreo.sh >> /dev/null 2>&1`
