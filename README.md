@@ -1,6 +1,7 @@
 # G1_CY401_MN_TallerPractico1
 Este repositorio es para el taller práctico del grupo 1 para el curso CY401.
 
+
 ## Estudiante 1: Arquitectura, Entorno y Captura de Interrupciones (Líder Técnico): Aaron
 - Parte 1: Preparación del entorno (Taller1, monitoreo.sh, permisos).
 - Parte 3 (Punto 1 y 2): Estructura inicial del script (Shebang #!/bin/bash, comentarios del curso/integrantes).

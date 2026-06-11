@@ -112,9 +112,35 @@ comprobar_alerta_memoria() {
   fi
   return 0
 }
+# ---------------------- Menú ----------------------
+mostrar_menu() {
+  echo ""
+  echo "========== MENÚ =========="
+  echo "1. Ver CPU"
+  echo "2. Ver procesos activos"
+  echo "3. Continuar con monitoreo"
+  echo "=========================="
 
+  read -p "Seleccione una opción: " opcion
+
+  case $opcion in
+    1)
+      top -bn1 | grep "Cpu(s)"
+      ;;
+    2)
+      ps aux --sort=-%cpu | head -10
+      ;;
+    3)
+      echo "Iniciando monitoreo..."
+      ;;
+    *)
+      echo "ERROR: Opción inválida."
+      ;;
+  esac
+}
 # ---------------------- Flujo principal ----------------------
 crear_directorio_logs
+mostrar_menu
 
 # Configurar el nombre del archivo de log con la fecha actual
 LOG_FILE="${LOG_DIR}/${LOG_FILE_PREFIX}_$(date +%Y-%m-%d).log"
