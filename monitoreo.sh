@@ -34,6 +34,10 @@ MAX_LOG_SIZE=$((10 * 1024 * 1024)) # 10 MB en bytes
 LOG_FILE_PREFIX="monitoreo"
 TIMESTAMP_FMT="%Y-%m-%d %H:%M:%S"
 
+ERROR_LOG=""
+ALERT_LOG=""
+SYSTEM_LOG=""
+
 # Umbral de memoria para generar alertas (Estudiante 2 - Nicole)
 THRESHOLD_MEM=70  # Umbral en porcentaje (por defecto 70%)
 
@@ -126,7 +130,9 @@ comprobar_alerta_memoria() {
   if [ "$used" -ge "$THRESHOLD_MEM" ]; then
     local ts
     ts="$(timestamp)"
-    echo "[ALERTA] ${ts} - Memoria usada: ${used}% (umbral: ${THRESHOLD_MEM}%)" >> "$LOG_FILE"
+    registrar_alerta "Memoria usada: ${used}% (umbral: ${THRESHOLD_MEM}%)"
+
+echo "[ALERTA] ${ts} - Memoria usada: ${used}% (umbral: ${THRESHOLD_MEM}%)" >> "$LOG_FILE"
     return 1
   fi
   return 0
@@ -192,6 +198,27 @@ verificar_tamano_logs() {
     fi
   done
 }
+
+prueba_redireccion() {
+
+    registrar_log "INFO" "Iniciando prueba de redirección avanzada"
+
+    # Salida estándar a SYSTEM_LOG
+    echo "Prueba de salida estándar" >> "$SYSTEM_LOG"
+
+    # Error estándar a ERROR_LOG
+    ls /ruta_inexistente 2>> "$ERROR_LOG"
+
+    # Salida y errores separados
+    df -h >> "$SYSTEM_LOG" 2>> "$ERROR_LOG"
+
+    # Salida y errores juntos
+    top -bn1 &>> "$SYSTEM_LOG"
+
+    registrar_log "INFO" "Prueba de redirección avanzada finalizada"
+
+}
+
 # ---------------------- Flujo principal ----------------------
 # Crear directorio de logs primero
 crear_directorio_logs
@@ -199,8 +226,164 @@ crear_directorio_logs
 # Configurar el nombre del archivo de log con la fecha actual (ANTES del menú)
 LOG_FILE="${LOG_DIR}/${LOG_FILE_PREFIX}_$(date +%Y-%m-%d).log"
 
+ERROR_LOG="${LOG_DIR}/errores_$(date +%Y-%m-%d).log"
+ALERT_LOG="${LOG_DIR}/alertas_$(date +%Y-%m-%d).log"
+SYSTEM_LOG="${LOG_DIR}/sistema_$(date +%Y-%m-%d).log"
+
 # Verificar tamaño de logs anteriores antes de iniciar el monitoreo
 verificar_tamano_logs
+
+ERROR_LOG="${LOG_DIR}/errores_$(date +%Y-%m-%d).log"
+ALERT_LOG="${LOG_DIR}/alertas_$(date +%Y-%m-%d).log"
+SYSTEM_LOG="${LOG_DIR}/sistema_$(date +%Y-%m-%d).log"
+
+#Administracion de logs 
+
+registrar_log() {
+    local nivel="$1"
+    local mensaje="$2"
+
+    echo "[$nivel] $(timestamp) - $mensaje" >> "$SYSTEM_LOG"
+}
+
+registrar_error() {
+    local mensaje="$1"
+
+    echo "[ERROR] $(timestamp) - $mensaje" >> "$ERROR_LOG"
+    echo "[ERROR] $(timestamp) - $mensaje" >> "$SYSTEM_LOG"
+}
+
+registrar_alerta() {
+    local mensaje="$1"
+
+    echo "[ALERTA] $(timestamp) - $mensaje" >> "$ALERT_LOG"
+    echo "[ALERTA] $(timestamp) - $mensaje" >> "$SYSTEM_LOG"
+}
+
+prueba_redireccion() {
+
+    registrar_log "INFO" "Iniciando prueba de redirección"
+
+    # Salida estándar
+    ls "$HOME" >> "$SYSTEM_LOG"
+
+    # Error estándar
+    ls /ruta_inexistente 2>> "$ERROR_LOG"
+
+    # Salida y errores separados
+    df -h >> "$SYSTEM_LOG" 2>> "$ERROR_LOG"
+
+    # Salida y errores juntos
+    top -bn1 &>> "$SYSTEM_LOG"
+
+    registrar_log "INFO" "Prueba de redirección finalizada"
+}
+
+mostrar_configuracion_cron() {
+
+    echo ""
+    echo "========= CONFIGURACIÓN CRON ========="
+    echo ""
+    echo "1. Abrir cron:"
+    echo "   crontab -e"
+    echo ""
+    echo "2. Ejecutar cada 5 minutos:"
+    echo "   */5 * * * * $(pwd)/monitoreo.sh"
+    echo ""
+    echo "3. Ver tareas programadas:"
+    echo "   crontab -l"
+    echo ""
+}
+
+generar_reporte() {
+
+    local REPORTE
+    local ALERTAS=0
+    local ERRORES=0
+
+    REPORTE="${LOG_DIR}/reporte_final_$(date +%Y-%m-%d_%H-%M-%S).txt"
+
+    [ -f "$ALERT_LOG" ] && ALERTAS=$(grep -c "\[ALERTA\]" "$ALERT_LOG")
+    [ -f "$ERROR_LOG" ] && ERRORES=$(grep -c "\[ERROR\]" "$ERROR_LOG")
+
+    {
+        echo "================================================="
+        echo " REPORTE FINAL DEL SISTEMA"
+        echo "================================================="
+        echo ""
+        echo "Fecha: $(date)"
+        echo "Usuario: $(whoami)"
+        echo ""
+
+        echo "-------------------------------------------------"
+        echo " ESTADÍSTICAS DE EJECUCIÓN"
+        echo "-------------------------------------------------"
+        echo "Iteraciones ejecutadas: $ITERATIONS"
+        echo "Intervalo: $SLEEP_INTERVAL segundos"
+        echo ""
+
+        echo "-------------------------------------------------"
+        echo " CPU"
+        echo "-------------------------------------------------"
+        top -bn1 | head -10
+        echo ""
+
+        echo "-------------------------------------------------"
+        echo " MEMORIA"
+        echo "-------------------------------------------------"
+        free -h
+        echo ""
+
+        echo "-------------------------------------------------"
+        echo " DISCO"
+        echo "-------------------------------------------------"
+        df -h
+        echo ""
+
+        echo "-------------------------------------------------"
+        echo " ALERTAS"
+        echo "-------------------------------------------------"
+
+        if [ -f "$ALERT_LOG" ]; then
+            cat "$ALERT_LOG"
+        else
+            echo "No se registraron alertas."
+        fi
+
+        echo ""
+
+        echo "-------------------------------------------------"
+        echo " ERRORES"
+        echo "-------------------------------------------------"
+
+        if [ -f "$ERROR_LOG" ]; then
+            cat "$ERROR_LOG"
+        else
+            echo "No se registraron errores."
+        fi
+
+        echo ""
+
+        echo "-------------------------------------------------"
+        echo " RESUMEN"
+        echo "-------------------------------------------------"
+        echo "Cantidad de alertas: $ALERTAS"
+        echo "Cantidad de errores: $ERRORES"
+        echo ""
+
+        echo "================================================="
+        echo " FIN DEL REPORTE"
+        echo "================================================="
+
+    } > "$REPORTE"
+
+    registrar_log "INFO" "Reporte final generado: $REPORTE"
+
+    echo ""
+    echo "Reporte generado correctamente:"
+    echo "$REPORTE"
+    echo ""
+}
 
 # ---------------------- Menú interactivo ----------------------
 mostrar_menu() {
@@ -210,7 +393,8 @@ mostrar_menu() {
     echo "1. Ver CPU"
     echo "2. Ver procesos activos"
     echo "3. Iniciar monitoreo"
-    echo "4. Salir"
+    echo "4. Ver configuración Cron"
+    echo "5. Salir"
     echo "=========================="
     echo ""
 
@@ -241,11 +425,14 @@ mostrar_menu() {
         break
         ;;
         4)
-        echo ""
-        echo "[*] Saliendo del script..."
-        echo ""
-        exit 0
-        ;;
+    mostrar_configuracion_cron
+    ;;
+    5)
+    echo ""
+    echo "[*] Saliendo del script..."
+    echo ""
+    exit 0
+    ;;
       *)
         echo "[ERROR] Opción inválida. Por favor, seleccione 1, 2, 3 o 4."
         echo ""
@@ -297,6 +484,99 @@ done
   echo "Fin de Monitoreo - $(date '+%Y-%m-%d %H:%M:%S')"
   echo "============================================================"
 } >> "$LOG_FILE" 2>&1
+
+generar_reporte() {
+
+    local REPORTE
+    local ALERTAS=0
+    local ERRORES=0
+
+    REPORTE="${LOG_DIR}/reporte_final_$(date +%Y-%m-%d_%H-%M-%S).txt"
+
+    [ -f "$ALERT_LOG" ] && ALERTAS=$(grep -c "\[ALERTA\]" "$ALERT_LOG")
+    [ -f "$ERROR_LOG" ] && ERRORES=$(grep -c "\[ERROR\]" "$ERROR_LOG")
+
+    {
+        echo "================================================="
+        echo "REPORTE FINAL DEL SISTEMA"
+        echo "================================================="
+        echo ""
+        echo "Fecha de generación: $(date)"
+        echo "Usuario: $(whoami)"
+        echo ""
+
+        echo "-------------------------------------------------"
+        echo "ESTADÍSTICAS DE EJECUCIÓN"
+        echo "-------------------------------------------------"
+        echo "Iteraciones ejecutadas: $ITERATIONS"
+        echo "Intervalo entre iteraciones: $SLEEP_INTERVAL segundos"
+        echo ""
+
+        echo "-------------------------------------------------"
+        echo "ESTADO DEL CPU"
+        echo "-------------------------------------------------"
+        top -bn1 | head -10
+        echo ""
+
+        echo "-------------------------------------------------"
+        echo "ESTADO DE MEMORIA"
+        echo "-------------------------------------------------"
+        free -h
+        echo ""
+
+        echo "-------------------------------------------------"
+        echo "ESTADO DEL DISCO"
+        echo "-------------------------------------------------"
+        df -h
+        echo ""
+
+        echo "-------------------------------------------------"
+        echo "ALERTAS DETECTADAS"
+        echo "-------------------------------------------------"
+
+        if [ -f "$ALERT_LOG" ] && [ -s "$ALERT_LOG" ]; then
+            cat "$ALERT_LOG"
+        else
+            echo "No se registraron alertas."
+        fi
+
+        echo ""
+
+        echo "-------------------------------------------------"
+        echo "ERRORES DETECTADOS"
+        echo "-------------------------------------------------"
+
+        if [ -f "$ERROR_LOG" ] && [ -s "$ERROR_LOG" ]; then
+            cat "$ERROR_LOG"
+        else
+            echo "No se registraron errores."
+        fi
+
+        echo ""
+
+        echo "-------------------------------------------------"
+        echo "RESUMEN FINAL"
+        echo "-------------------------------------------------"
+        echo "Cantidad total de alertas: $ALERTAS"
+        echo "Cantidad total de errores: $ERRORES"
+        echo ""
+
+        echo "================================================="
+        echo "FIN DEL REPORTE"
+        echo "================================================="
+
+    } > "$REPORTE"
+
+    registrar_log "INFO" "Reporte final generado: $REPORTE"
+
+    echo ""
+    echo "============================================="
+    echo "Reporte generado correctamente"
+    echo "Archivo: $REPORTE"
+    echo "============================================="
+    echo ""
+
+}
 
 # Salida exitosa
 exit 0
