@@ -233,9 +233,48 @@ SYSTEM_LOG="${LOG_DIR}/sistema_$(date +%Y-%m-%d).log"
 # Verificar tamaño de logs anteriores antes de iniciar el monitoreo
 verificar_tamano_logs
 
-ERROR_LOG="${LOG_DIR}/errores_$(date +%Y-%m-%d).log"
-ALERT_LOG="${LOG_DIR}/alertas_$(date +%Y-%m-%d).log"
-SYSTEM_LOG="${LOG_DIR}/sistema_$(date +%Y-%m-%d).log"
+# Crear descriptor de archivo para debug log (Estudiante 5 - Monse)
+DEBUG_LOG="${LOG_DIR}/debug_$(date +%Y-%m-%d).log"
+exec 3> "$DEBUG_LOG"
+
+# Función para generar resumen de ejecución (Estudiante 5 - Monse)
+generar_resumen() {
+    local RESUMEN="${LOG_DIR}/resumen.txt"
+    local ALERTAS=0
+    local ERRORES=0
+
+    [ -f "$ALERT_LOG" ] && ALERTAS=$(grep -c "\[ALERTA\]" "$ALERT_LOG" 2>/dev/null || echo 0)
+    [ -f "$ERROR_LOG" ] && ERRORES=$(grep -c "\[ERROR\]" "$ERROR_LOG" 2>/dev/null || echo 0)
+
+    {
+        echo "================================================="
+        echo "RESUMEN DE EJECUCIÓN DEL MONITOREO"
+        echo "================================================="
+        echo ""
+        echo "Fecha de generación: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "Usuario: $(whoami)"
+        echo "Directorio de logs: $LOG_DIR"
+        echo ""
+        echo "Iteraciones configuradas: $ITERATIONS"
+        echo "Intervalo entre iteraciones: $SLEEP_INTERVAL segundos"
+        echo "Umbral de memoria para alertas: ${THRESHOLD_MEM}%"
+        echo ""
+        echo "Cantidad de alertas generadas: $ALERTAS"
+        echo "Cantidad de errores registrados: $ERRORES"
+        echo ""
+        echo "Archivos generados:"
+        echo "  - $LOG_FILE"
+        echo "  - $ERROR_LOG"
+        echo "  - $ALERT_LOG"
+        echo "  - $SYSTEM_LOG"
+        echo "================================================="
+    } > "$RESUMEN"
+
+    echo "Resumen generado: $RESUMEN"
+}
+
+# Bucle principal: mostrar menú, ejecutar monitoreo, y volver al menú
+while true; do
 
 #Administracion de logs 
 
@@ -428,15 +467,17 @@ mostrar_menu() {
     mostrar_configuracion_cron
     ;;
     5)
-    echo ""
-    echo "[*] Saliendo del script..."
-    echo ""
-    exit 0
-    ;;
-      *)
-        echo "[ERROR] Opción inválida. Por favor, seleccione 1, 2, 3 o 4."
-        echo ""
-        ;;
+      echo ""
+      generar_reporte
+      generar_resumen
+      echo "[*] Saliendo del script..."
+      echo ""
+      exit 0
+      ;;
+    *)
+      echo "[ERROR] Opción inválida. Por favor, seleccione 1, 2, 3, 4 o 5."
+      echo ""
+      ;;
     esac
   done
 }
@@ -485,101 +526,8 @@ done
   echo "============================================================"
 } >> "$LOG_FILE" 2>&1
 
-generar_reporte() {
-
-    local REPORTE
-    local ALERTAS=0
-    local ERRORES=0
-
-    REPORTE="${LOG_DIR}/reporte_final_$(date +%Y-%m-%d_%H-%M-%S).txt"
-
-    [ -f "$ALERT_LOG" ] && ALERTAS=$(grep -c "\[ALERTA\]" "$ALERT_LOG")
-    [ -f "$ERROR_LOG" ] && ERRORES=$(grep -c "\[ERROR\]" "$ERROR_LOG")
-
-    {
-        echo "================================================="
-        echo "REPORTE FINAL DEL SISTEMA"
-        echo "================================================="
-        echo ""
-        echo "Fecha de generación: $(date)"
-        echo "Usuario: $(whoami)"
-        echo ""
-
-        echo "-------------------------------------------------"
-        echo "ESTADÍSTICAS DE EJECUCIÓN"
-        echo "-------------------------------------------------"
-        echo "Iteraciones ejecutadas: $ITERATIONS"
-        echo "Intervalo entre iteraciones: $SLEEP_INTERVAL segundos"
-        echo ""
-
-        echo "-------------------------------------------------"
-        echo "ESTADO DEL CPU"
-        echo "-------------------------------------------------"
-        top -bn1 | head -10
-        echo ""
-
-        echo "-------------------------------------------------"
-        echo "ESTADO DE MEMORIA"
-        echo "-------------------------------------------------"
-        free -h
-        echo ""
-
-        echo "-------------------------------------------------"
-        echo "ESTADO DEL DISCO"
-        echo "-------------------------------------------------"
-        df -h
-        echo ""
-
-        echo "-------------------------------------------------"
-        echo "ALERTAS DETECTADAS"
-        echo "-------------------------------------------------"
-
-        if [ -f "$ALERT_LOG" ] && [ -s "$ALERT_LOG" ]; then
-            cat "$ALERT_LOG"
-        else
-            echo "No se registraron alertas."
-        fi
-
-        echo ""
-
-        echo "-------------------------------------------------"
-        echo "ERRORES DETECTADOS"
-        echo "-------------------------------------------------"
-
-        if [ -f "$ERROR_LOG" ] && [ -s "$ERROR_LOG" ]; then
-            cat "$ERROR_LOG"
-        else
-            echo "No se registraron errores."
-        fi
-
-        echo ""
-
-        echo "-------------------------------------------------"
-        echo "RESUMEN FINAL"
-        echo "-------------------------------------------------"
-        echo "Cantidad total de alertas: $ALERTAS"
-        echo "Cantidad total de errores: $ERRORES"
-        echo ""
-
-        echo "================================================="
-        echo "FIN DEL REPORTE"
-        echo "================================================="
-
-    } > "$REPORTE"
-
-    registrar_log "INFO" "Reporte final generado: $REPORTE"
-
-    echo ""
-    echo "============================================="
-    echo "Reporte generado correctamente"
-    echo "Archivo: $REPORTE"
-    echo "============================================="
-    echo ""
-
-}
-
-# Salida exitosa
-exit 0
+# Cerrar el bucle principal (regresa al menú después de cada monitoreo)
+done
 
 # ---------------------- Instrucciones de uso (documentadas) ----------------------
 # Comandos útiles:
